@@ -1,10 +1,15 @@
-# Pipeline 2: CI/CD para AutoTech 3D Platform (Backend Flask + Frontend React)
+# Pipeline 2: CI/CD para AutoTech 3D Platform (Backend Flask + Frontend React + Three.js)
 #
 # Ejecuta:
 #   1. Backend Unit Tests (SQLite en memoria)
 #   2. Backend Integration Tests (MySQL temporal)
 #   3. Frontend Build (React + Vite + Three.js)
-#   4. Deploy a EC2 (si hay secrets configurados)
+#   4. Deploy a EC2: sube backend a /opt/flaskapp/releases/<sha>,
+#      frontend compilado (dist/) a /opt/flaskapp/frontend,
+#      configura Nginx (SPA + proxy /api -> Gunicorn), reinicia Gunicorn y valida /health.
+#
+# Secrets requeridos en el environment (staging / production):
+#   EC2_HOST, EC2_USER, EC2_SSH_KEY
 
 name: 02 - CI/CD Deploy EC2
 
@@ -121,23 +126,37 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Instalar dependencias y compilar
         run: |
-          npm install
+          npm ci
           npm run build
+
+      - name: Guardar artefacto del frontend compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
   deploy:
     name: Deploy
     needs: [integration-tests, frontend-build]
-    if: github.event_name != 'pull_request' && vars.ENABLE_EC2_DEPLOY == 'true'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
       - name: Clonar el repositorio
         uses: actions/checkout@v4
 
-      - name: Preparar carpeta de releases
+      - name: Descargar frontend compilado
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: ./frontend-dist
+
+      - name: Preparar carpetas en EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
           APP_DIR: ${{ env.APP_DIR }}
@@ -148,14 +167,108 @@ jobs:
           envs: APP_DIR
           script: |
             set -euo pipefail
-            mkdir -p "$APP_DIR/releases"
+            sudo mkdir -p "$APP_DIR/releases" "$APP_DIR/frontend"
+            sudo chown -R "$USER":"$USER" "$APP_DIR/releases" "$APP_DIR/frontend"
+            sudo chmod -R u+rwX,go+rX "$APP_DIR/releases" "$APP_DIR/frontend"
 
-      - name: Subir código a la carpeta de release
+      - name: Subir Backend a la carpeta de release
         uses: burnett01/rsync-deployments@7.0.1
         with:
-          switches: -az --delete --exclude=.git --exclude=.github --exclude=backend/tests --exclude=backend/venv --exclude=frontend/node_modules
+          switches: -az --delete --exclude=.git --exclude=.github --exclude=tests --exclude=venv --exclude=.env --exclude=__pycache__
           path: ./backend/
           remote_path: ${{ env.APP_DIR }}/releases/${{ github.sha }}/
           remote_host: ${{ secrets.EC2_HOST }}
           remote_user: ${{ secrets.EC2_USER }}
           remote_key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Subir Frontend compilado a EC2
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -az --delete
+          path: ./frontend-dist/
+          remote_path: ${{ env.APP_DIR }}/frontend/
+          remote_host: ${{ secrets.EC2_HOST }}
+          remote_user: ${{ secrets.EC2_USER }}
+          remote_key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Instalar dependencias, configurar Nginx, activar release y verificar
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_DIR: ${{ env.APP_DIR }}
+          SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: APP_DIR,SHA
+          script: |
+            set -euo pipefail
+            REL="$APP_DIR/releases/$SHA"
+
+            # 1. Instalar dependencias en el virtualenv del servidor
+            sudo -u flaskapp "$APP_DIR/venv/bin/pip" install -q -r "$REL/requirements.txt"
+
+            # 2. Inicializar tablas y datos semilla si la BD está vacía (idempotente)
+            sudo -u flaskapp bash -c "set -a && source $APP_DIR/.env && set +a && cd $REL && $APP_DIR/venv/bin/flask --app wsgi:app init-db"
+
+            # 3. Asegurar permisos en release y frontend
+            sudo chown -R flaskapp:flaskapp "$REL" "$APP_DIR/frontend"
+            sudo chmod -R a+rX "$REL" "$APP_DIR/frontend"
+
+            # 4. Actualizar Nginx para servir React (/) y pasar /api/ + /health a Gunicorn
+            sudo tee /etc/nginx/sites-available/flaskapp >/dev/null <<'EOF'
+            server {
+                listen 80 default_server;
+                server_name _;
+                client_max_body_size 10M;
+
+                root /opt/flaskapp/frontend;
+                index index.html;
+
+                location /api/ {
+                    include proxy_params;
+                    proxy_pass http://unix:/opt/flaskapp/flaskapp.sock;
+                }
+
+                location = /health {
+                    include proxy_params;
+                    proxy_pass http://unix:/opt/flaskapp/flaskapp.sock;
+                }
+
+                location / {
+                    try_files $uri $uri/ /index.html;
+                }
+            }
+            EOF
+            sudo nginx -t && sudo systemctl reload nginx
+
+            # 5. Recordar la release activa para rollback
+            PREV=""
+            if [ -L "$APP_DIR/app" ]; then
+              PREV=$(readlink -f "$APP_DIR/app")
+            else
+              sudo rm -rf "$APP_DIR/app"
+            fi
+
+            # 6. Activar la release nueva y reiniciar Gunicorn
+            sudo ln -sfn "$REL" "$APP_DIR/app"
+            sudo systemctl restart flaskapp
+
+            # 7. Health check (hasta 6 intentos x 5s)
+            for i in 1 2 3 4 5 6; do
+              sleep 5
+              if curl -fsS http://localhost/health && curl -fsS http://localhost/api/health && curl -fsS http://localhost/ >/dev/null; then
+                echo
+                echo "Release $SHA activa (Backend + Frontend)"
+                ls -1dt "$APP_DIR"/releases/* | tail -n +6 | xargs -r sudo rm -rf
+                exit 0
+              fi
+            done
+
+            # 8. Rollback si falla
+            echo "Health check falló -> rollback a ${PREV:-ninguna}"
+            if [ -n "$PREV" ] && [ "$PREV" != "$REL" ]; then
+              sudo ln -sfn "$PREV" "$APP_DIR/app"
+              sudo systemctl restart flaskapp
+            fi
+            exit 1

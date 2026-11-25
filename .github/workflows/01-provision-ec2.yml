@@ -100,7 +100,7 @@ jobs:
           script: |
             set -euo pipefail
             id "$APP_USER" >/dev/null 2>&1 || sudo useradd --system --create-home --shell /bin/bash "$APP_USER"
-            sudo mkdir -p "$APP_DIR"/{app,backups,logs}
+            sudo mkdir -p "$APP_DIR"/{app,frontend,backups,logs}
             sudo chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
             sudo usermod -aG "$APP_USER" "$USER"   # el usuario SSH puede hacer rsync
             sudo chmod -R g+w "$APP_DIR"
@@ -152,9 +152,22 @@ jobs:
                 listen 80 default_server;
                 server_name _;
                 client_max_body_size 10M;
-                location / {
+
+                root ${APP_DIR}/frontend;
+                index index.html;
+
+                location /api/ {
                     include proxy_params;
                     proxy_pass http://unix:${APP_DIR}/flaskapp.sock;
+                }
+
+                location = /health {
+                    include proxy_params;
+                    proxy_pass http://unix:${APP_DIR}/flaskapp.sock;
+                }
+
+                location / {
+                    try_files \$uri \$uri/ /index.html;
                 }
             }
             EOF
