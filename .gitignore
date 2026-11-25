@@ -1,0 +1,52 @@
+# =============================================================================
+# AutoTech 3D — .gitignore raíz
+# =============================================================================
+
+# Ignorar archivos de entorno (contienen contraseñas y claves)
+.env
+*.env
+
+# Ignorar entornos virtuales de Python
+venv/
+env/
+.venv/
+backend/venv/
+backend/env/
+
+# Ignorar base de datos SQLite (se crea con flask init-db)
+*.db
+*.sqlite
+*.sqlite3
+backend/*.db
+
+# Ignorar caché de Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Ignorar dependencias de Node
+frontend/node_modules/
+node_modules/
+
+# Ignorar build de producción del frontend
+frontend/dist/
+frontend/build/
+
+# Ignorar archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ignorar archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignorar logs
+*.log
+logs/
+
+# Ignorar archivos de migración generados (opcional, déjalos si quieres)
+# migrations/versions/*.py
