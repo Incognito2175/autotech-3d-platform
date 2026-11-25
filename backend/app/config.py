@@ -17,11 +17,12 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    """Configuración para el entorno de desarrollo local."""
+    """Configuración para el entorno de desarrollo local con MySQL."""
     DEBUG = True
+    # Por defecto usa MySQL local. Si no tienes contraseña: root:@localhost
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL",
-        f"sqlite:///{os.path.join(BASE_DIR, 'autotech.db')}",
+        "mysql+pymysql://root:@localhost:3306/autotech_db",
     )
 
 

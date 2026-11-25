@@ -89,10 +89,24 @@ def create_app(config_name=None):
 
     @app.cli.command("init-db")
     def init_db_command():
-        """Crear todas las tablas e insertar datos de semilla."""
+        """Crear tablas si no existen e insertar datos de semilla si la BD está vacía."""
         db.create_all()
         from app.seed import seed_database
         seed_database()
-        print("✅ Base de datos inicializada y poblada correctamente.")
+        print("✅ Base de datos lista.")
+
+    @app.cli.command("check-db")
+    def check_db_command():
+        """Verificar conexión a la base de datos."""
+        from sqlalchemy import text
+        try:
+            db.session.execute(text("SELECT 1"))
+            from app.models import Categoria, Pieza, GuiaReparacion
+            print(f"✅ Conexión MySQL exitosa")
+            print(f"   Categorías : {Categoria.query.count()}")
+            print(f"   Piezas     : {Pieza.query.count()}")
+            print(f"   Guías      : {GuiaReparacion.query.count()}")
+        except Exception as e:
+            print(f"❌ Error de conexión: {e}")
 
     return app

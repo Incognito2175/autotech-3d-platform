@@ -6,3 +6,4 @@ PyMySQL>=1.1
 cryptography>=42.0
 python-dotenv>=1.0
 gunicorn>=22.0
+# mysqlclient>=2.2.0  # alternativa nativa (requiere compilador C)

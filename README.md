@@ -83,11 +83,14 @@ npm run dev
 
 ## 🗄️ Base de Datos
 
-- **Desarrollo:** SQLite (se crea automáticamente con `flask init-db`)
-- **Producción:** MySQL/PostgreSQL (configurar `DATABASE_URL` en `.env`)
+- **Motor:** MySQL (base de datos `autotech_db` ya creada)
+- **Tablas incluidas:** `categorias`, `piezas`, `guias_reparacion`, `pasos_guia`, `relaciones_acople`
 
-La base de datos **no se sube al repositorio** (está en `.gitignore`).
-Cada vez que clonas el proyecto debes ejecutar `flask init-db` para crearla.
+La base de datos **NO se sube al repo**. Cada persona que clone el proyecto debe:
+1. Tener MySQL instalado
+2. Crear la base de datos: `CREATE DATABASE autotech_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+3. Configurar `DATABASE_URL` en su `.env`
+4. Ejecutar `flask init-db` para crear tablas y datos de ejemplo
 
 ## 🛠️ Variables de Entorno
 
