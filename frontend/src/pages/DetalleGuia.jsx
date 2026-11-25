@@ -1,104 +1,178 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { getGuia } from '../api.js'
 
 export default function DetalleGuia() {
   const { id } = useParams()
   const [guia, setGuia] = useState(null)
+  const [completados, setCompletados] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    setLoading(true)
     getGuia(id)
-      .then(setGuia)
+      .then((data) => {
+        setGuia(data)
+        setError(null)
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [id])
 
-  if (loading) return <div className="spinner" />
-  if (error) return <div className="alert alert-error">{error}</div>
+  const togglePaso = (pasoId) => {
+    setCompletados((prev) => ({ ...prev, [pasoId]: !prev[pasoId] }))
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <div className="spinner-border text-warning" role="status" />
+      </div>
+    )
+  }
+  if (error) return <div className="alert alert-danger">{error}</div>
   if (!guia) return null
 
+  const totalPasos = guia.pasos ? guia.pasos.length : 0
+  const numCompletados = guia.pasos
+    ? guia.pasos.filter((p) => completados[p.id]).length
+    : 0
+  const progreso = totalPasos > 0 ? Math.round((numCompletados / totalPasos) * 100) : 0
+
+  const badgeClass =
+    guia.dificultad === 'facil'
+      ? 'bg-success-subtle text-success border border-success-subtle'
+      : guia.dificultad === 'medio'
+        ? 'bg-warning-subtle text-warning border border-warning-subtle'
+        : 'bg-danger-subtle text-danger border border-danger-subtle'
+
   return (
-    <div>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <Link to="/guias" style={{ color: 'var(--text-muted)', fontSize: '.9rem' }}>
-          <i className="fas fa-arrow-left" /> Volver a las guías
+    <div className="mb-5">
+      <div className="mb-4">
+        <Link
+          to="/guias"
+          className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 mb-3"
+        >
+          <i className="fas fa-arrow-left" /> Volver a todas las guías
         </Link>
-      </div>
 
-      {/* Header de la guía */}
-      <div className="card" style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
-          <span className={`badge badge-${guia.dificultad}`}>{guia.dificultad}</span>
-          {guia.tiempo_estimado && (
-            <span style={{ color: 'var(--text-muted)', fontSize: '.85rem' }}>
-              <i className="fas fa-clock" /> {guia.tiempo_estimado}
+        <div
+          className="p-4 rounded-4"
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}
+        >
+          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <span
+              className="badge"
+              style={{
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: '#f59e0b',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                fontSize: '0.9rem',
+              }}
+            >
+              <i className="fas fa-clock me-1" /> Tiempo estimado: {guia.tiempo_estimado}
             </span>
+
+            <div className="d-flex flex-wrap gap-2">
+              <span className={`badge ${badgeClass}`} style={{ fontSize: '0.85rem' }}>
+                Dificultad: {(guia.dificultad || 'medio').toUpperCase()}
+              </span>
+              <Link
+                to={`/visor3d?pieza=${encodeURIComponent(guia.pieza_nombre || '')}`}
+                className="btn btn-sm btn-outline-info d-flex align-items-center gap-1"
+              >
+                <i className="fas fa-cube" /> Inspeccionar {guia.pieza_nombre} en 3D
+              </Link>
+            </div>
+          </div>
+
+          <h1 className="h2 fw-bold text-white mb-2">{guia.titulo}</h1>
+          <p className="text-muted lead fs-6 mb-3">{guia.descripcion}</p>
+
+          {totalPasos > 0 && (
+            <div>
+              <div className="d-flex justify-content-between small text-muted mb-1">
+                <span>Progreso del procedimiento</span>
+                <span>
+                  {numCompletados} / {totalPasos} pasos ({progreso}%)
+                </span>
+              </div>
+              <div className="progress" style={{ height: '7px', background: 'rgba(0,0,0,0.4)' }}>
+                <div
+                  className="progress-bar"
+                  role="progressbar"
+                  style={{ width: `${progreso}%`, background: 'var(--accent)' }}
+                />
+              </div>
+            </div>
           )}
-          <span style={{ color: 'var(--accent-blue)', fontSize: '.85rem' }}>
-            <i className="fas fa-wrench" /> {guia.pieza_nombre}
-          </span>
         </div>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '.75rem' }}>{guia.titulo}</h1>
-        <p style={{ color: 'var(--text-muted)', lineHeight: 1.7 }}>{guia.descripcion}</p>
       </div>
 
-      {/* Pasos */}
-      {guia.pasos && guia.pasos.length > 0 && (
-        <div>
-          <h2 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: 700 }}>
-            <i className="fas fa-list-ol" style={{ marginRight: '8px', color: '#f59e0b' }} />
-            Pasos de la reparación
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {guia.pasos.map((paso) => (
-              <div key={paso.id} className="card" style={{ borderLeft: '3px solid var(--accent)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+      <h3 className="h4 fw-bold text-white mb-3">
+        <i className="fas fa-clipboard-check text-accent me-2" />
+        Procedimiento Técnico Detallado
+      </h3>
+
+      <div className="row g-3">
+        {(guia.pasos || []).map((paso) => {
+          const done = !!completados[paso.id]
+          return (
+            <div className="col-12" key={paso.id}>
+              <div
+                className={`card p-3 border-0 shadow-sm guide-step-card ${done ? 'completed' : ''}`}
+              >
+                <div className="d-flex align-items-center justify-content-between gap-3 mb-2">
+                  <div className="d-flex align-items-center gap-3">
+                    <span
+                      className="badge rounded-circle p-2 d-flex align-items-center justify-content-center"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        background: done ? '#2ecc71' : 'var(--accent)',
+                        color: 'white',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {done ? <i className="fas fa-check" /> : paso.numero_paso}
+                    </span>
+                    <h5 className="text-white mb-0 fw-semibold">{paso.titulo}</h5>
+                  </div>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${done ? 'btn-success' : 'btn-outline-secondary'}`}
+                    onClick={() => togglePaso(paso.id)}
+                  >
+                    {done ? 'Completado' : 'Marcar paso'}
+                  </button>
+                </div>
+
+                <p className="text-muted ps-5 mb-2" style={{ lineHeight: 1.6 }}>
+                  {paso.instruccion}
+                </p>
+
+                {paso.advertencia && (
                   <div
+                    className="ms-5 p-2 rounded-2 d-flex align-items-center gap-2"
                     style={{
-                      minWidth: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      background: 'var(--accent)',
-                      color: 'white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800,
-                      fontSize: '.9rem',
-                      flexShrink: 0,
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#fca5a5',
+                      fontSize: '0.85rem',
                     }}
                   >
-                    {paso.numero_paso}
+                    <i className="fas fa-triangle-exclamation text-danger" />
+                    <span>
+                      <strong>Precaución de seguridad:</strong> {paso.advertencia}
+                    </span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontWeight: 700, marginBottom: '.5rem' }}>{paso.titulo}</h3>
-                    <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: paso.advertencia ? '1rem' : 0 }}>
-                      {paso.instruccion}
-                    </p>
-                    {paso.advertencia && (
-                      <div
-                        style={{
-                          background: 'rgba(239,68,68,.1)',
-                          border: '1px solid rgba(239,68,68,.3)',
-                          borderRadius: '8px',
-                          padding: '.75rem 1rem',
-                          fontSize: '.85rem',
-                          color: '#fca5a5',
-                        }}
-                      >
-                        <i className="fas fa-triangle-exclamation" style={{ marginRight: '6px' }} />
-                        {paso.advertencia}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

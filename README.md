@@ -1,117 +1,118 @@
 # 🚗 AutoTech 3D Platform
 
-Plataforma educativa de mecánica y electricidad automotriz con catálogo de piezas, visor 3D y guías de reparación paso a paso.
+Plataforma web de ingeniería y consulta técnica automotriz separada en **Backend (Flask API REST)** y **Frontend (React + Vite + Three.js)**, conectada a **MySQL**.
 
-## 🏗️ Arquitectura
+---
 
+## 🌟 Funcionalidades Principales
+
+1. **Visor 3D Interactivo (`/visor3d`)**:
+   - Modelado procedural WebGL con **Three.js**: Bloque de Motor (4 Cilindros), Pistón y Biela Forjada, Bujía de Encendido Iridio, Disco de Freno Ventilado, Alternador Trifásico 12V 120A, Engranaje Helicoidal de Transmisión y Amortiguador MacPherson con Resorte.
+   - Simulación de **desensamblaje / ensamblaje** (vista explotada), rotación automática y modo malla (Wireframe).
+   - Selección interactiva con **Raycasting** + vínculo con fichas técnicas y guías en MySQL.
+
+2. **Catálogo Técnico de Componentes (`/catalogo`)**:
+   - Búsqueda instantánea y filtros por categoría desde MySQL.
+   - Modal de vista rápida, ficha completa con relaciones de acople y creación de nuevas piezas (`POST /api/piezas`).
+
+3. **Guías y Procedimientos de Reparación (`/guias`)**:
+   - Manuales técnicos paso a paso con barra de progreso interactiva, advertencias de seguridad y enlace directo al modelo 3D.
+
+4. **API REST JSON (`/api/...`)**:
+   - Endpoints para monitoreo (`/`, `/health`, `/api/health`), categorías, piezas, guías y relaciones de acople.
+   - Todas las respuestas incluyen las cabeceras `X-App-Name: Autotech-3D-Platform` y `X-App-Status: Connected`.
+
+---
+
+## 🏗️ Estructura del Proyecto
+
+```text
+autotech-3d-platform/
+├── backend/                     ← API REST en Flask (Python + SQLAlchemy + MySQL)
+│   ├── app/
+│   │   ├── __init__.py          ← Fábrica Flask, CORS, /, /health y CLI
+│   │   ├── config.py            ← Configuración dev/test/prod
+│   │   ├── models.py            ← Modelos SQLAlchemy
+│   │   ├── routes.py            ← Endpoints /api/*
+│   │   └── seed.py              ← Datos iniciales del dominio automotriz
+│   ├── migrations/              ← Migraciones Alembic (Flask-Migrate)
+│   ├── tests/                   ← Pruebas unitarias y de integración (pytest)
+│   ├── .env.example
+│   ├── requirements.txt
+│   └── wsgi.py
+└── frontend/                    ← Aplicación Web en React + Vite + Three.js
+    ├── src/
+    │   ├── api.js               ← Cliente HTTP hacia el backend
+    │   ├── components/          ← Navbar, Footer, ApiStatus
+    │   └── pages/               ← Inicio, Catalogo, DetallePieza, Visor3D, Guias, DetalleGuia
+    ├── vite.config.js           ← Proxy /api -> http://localhost:5000
+    ├── .env.example
+    └── package.json
 ```
-autotech-separado/
-├── backend/    ← API REST con Flask (Python)
-└── frontend/   ← Interfaz web con React + Vite
-```
 
-## ⚡ Inicio Rápido
+---
 
-### 1. Clonar el repositorio
+## 💻 Ejecución Local en Desarrollo
 
-```bash
-git clone <URL_DE_TU_REPO>
-cd autotech-separado
-```
-
-### 2. Backend (Flask API)
+### 1. Backend (Flask API)
 
 ```bash
 cd backend
-
-# Crear entorno virtual
 python -m venv venv
 
-# Activar entorno virtual
-# Windows:
+# Activar entorno virtual:
+# En Git Bash (Windows):
+source venv/Scripts/activate
+# En PowerShell (Windows):
 .\venv\Scripts\Activate.ps1
-# Mac/Linux:
-source venv/bin/activate
 
-# Instalar dependencias
 pip install -r requirements.txt
-
-# Configurar variables de entorno
 cp .env.example .env
-# (editar .env si necesitas cambiar algo)
+```
 
-# Inicializar base de datos con datos de ejemplo
-flask init-db
+Edita `backend/.env` con tus credenciales de MySQL:
+```env
+DATABASE_URL=mysql+pymysql://root:TU_CONTRASEÑA@localhost:3306/autotech_db
+```
+*(Si no tiene contraseña: `mysql+pymysql://root:@localhost:3306/autotech_db`)*
 
-# Correr el servidor
+Verifica la BD e inicia el servidor:
+```bash
+flask check-db
+# Si está vacía, ejecuta: flask init-db
 flask run --port 5000
 ```
 
-> El backend queda disponible en **http://localhost:5000**
-
-### 3. Frontend (React)
+### 2. Frontend (React + Vite + Three.js)
 
 Abre **otra terminal**:
 
 ```bash
 cd frontend
-
-# Instalar dependencias
 npm install
-
-# Configurar variables de entorno
 cp .env.example .env
-
-# Correr en desarrollo
 npm run dev
 ```
 
-> El frontend queda disponible en **http://localhost:5173**
+Abre en tu navegador: **`http://localhost:5173`**
 
-## 🔑 Endpoints principales de la API
+---
+
+## 📮 Endpoints para Postman (`http://localhost:5000`)
 
 | Método | URL | Descripción |
 |--------|-----|-------------|
-| GET | `/api/health` | Estado del servidor |
-| GET | `/api/categorias` | Listar categorías |
-| GET | `/api/piezas` | Listar piezas |
-| GET | `/api/piezas/:id` | Detalle de pieza |
-| GET | `/api/guias` | Listar guías |
-| GET | `/api/guias/:id` | Guía con pasos |
-| POST | `/api/piezas` | Crear pieza |
-| POST | `/api/guias` | Crear guía |
-
-## 🗄️ Base de Datos
-
-- **Motor:** MySQL (base de datos `autotech_db` ya creada)
-- **Tablas incluidas:** `categorias`, `piezas`, `guias_reparacion`, `pasos_guia`, `relaciones_acople`
-
-La base de datos **NO se sube al repo**. Cada persona que clone el proyecto debe:
-1. Tener MySQL instalado
-2. Crear la base de datos: `CREATE DATABASE autotech_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
-3. Configurar `DATABASE_URL` en su `.env`
-4. Ejecutar `flask init-db` para crear tablas y datos de ejemplo
-
-## 🛠️ Variables de Entorno
-
-### Backend (`backend/.env`)
-
-```env
-FLASK_ENV=development
-FLASK_APP=wsgi.py
-SECRET_KEY=tu-clave-secreta
-DATABASE_URL=sqlite:///autotech.db
-CORS_ORIGINS=http://localhost:5173
-```
-
-### Frontend (`frontend/.env`)
-
-```env
-VITE_API_BASE_URL=/api
-```
-
-## 📋 Requisitos
-
-- **Python** 3.10+
-- **Node.js** 18+
-- **pip** y **npm**
+| `GET` | `/` | Mensaje de bienvenida y lista de endpoints |
+| `GET` | `/api/health` | Estado de la app y conexión a MySQL |
+| `GET` | `/api/categorias` | Listar todas las categorías |
+| `POST` | `/api/categorias` | Crear una categoría |
+| `GET` | `/api/piezas` | Listar todas las piezas (`?categoria_id=1` o `?q=texto`) |
+| `GET` | `/api/piezas/:id` | Detalle de pieza con relaciones de acople |
+| `POST` | `/api/piezas` | Crear una pieza |
+| `PUT` | `/api/piezas/:id` | Actualizar una pieza |
+| `DELETE` | `/api/piezas/:id` | Eliminar una pieza |
+| `GET` | `/api/guias` | Listar guías (`?pieza_id=` o `?dificultad=facil\|medio\|dificil`) |
+| `GET` | `/api/guias/:id` | Detalle de guía con pasos |
+| `POST` | `/api/guias` | Crear una guía |
+| `GET` | `/api/relaciones/:pieza_id` | Relaciones de acople de una pieza |
+| `POST` | `/api/relaciones` | Crear relación de acople |

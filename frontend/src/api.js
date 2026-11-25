@@ -1,9 +1,8 @@
 /**
  * api.js — Cliente centralizado para consumir el Backend Autotech 3D
  *
- * Todas las llamadas al backend pasan por aquí.
- * En desarrollo: Vite hace proxy de /api → http://localhost:5000
- * En producción: cambiar VITE_API_BASE_URL en .env a la URL del servidor.
+ * En desarrollo: Vite redirige /api → http://localhost:5000
+ * En producción: configurar VITE_API_BASE_URL en .env
  */
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -33,29 +32,42 @@ export const createCategoria = (data) =>
   request('/categorias', { method: 'POST', body: JSON.stringify(data) })
 
 // ─── Piezas ──────────────────────────────────────────────────────────────────
-export const getPiezas = (categoriaId) => {
-  const qs = categoriaId ? `?categoria_id=${categoriaId}` : ''
+export const getPiezas = (categoriaId = null, search = '') => {
+  const params = new URLSearchParams()
+  if (categoriaId) params.set('categoria_id', categoriaId)
+  if (search && search.trim()) params.set('q', search.trim())
+  const qs = params.toString() ? `?${params.toString()}` : ''
   return request(`/piezas${qs}`)
 }
-export const getPieza = (id, incluirRelaciones = false) =>
+
+export const getPieza = (id, incluirRelaciones = true) =>
   request(`/piezas/${id}?incluir_relaciones=${incluirRelaciones}`)
+
 export const createPieza = (data) =>
   request('/piezas', { method: 'POST', body: JSON.stringify(data) })
+
 export const updatePieza = (id, data) =>
   request(`/piezas/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+
 export const deletePieza = (id) =>
   request(`/piezas/${id}`, { method: 'DELETE' })
 
 // ─── Guías ───────────────────────────────────────────────────────────────────
-export const getGuias = (piezaId) => {
-  const qs = piezaId ? `?pieza_id=${piezaId}` : ''
+export const getGuias = (piezaId = null, dificultad = null) => {
+  const params = new URLSearchParams()
+  if (piezaId) params.set('pieza_id', piezaId)
+  if (dificultad) params.set('dificultad', dificultad)
+  const qs = params.toString() ? `?${params.toString()}` : ''
   return request(`/guias${qs}`)
 }
+
 export const getGuia = (id) => request(`/guias/${id}?incluir_pasos=true`)
+
 export const createGuia = (data) =>
   request('/guias', { method: 'POST', body: JSON.stringify(data) })
 
 // ─── Relaciones ───────────────────────────────────────────────────────────────
 export const getRelaciones = (piezaId) => request(`/relaciones/${piezaId}`)
+
 export const createRelacion = (data) =>
   request('/relaciones', { method: 'POST', body: JSON.stringify(data) })
