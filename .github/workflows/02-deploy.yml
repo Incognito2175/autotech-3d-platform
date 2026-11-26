@@ -112,9 +112,11 @@ jobs:
           name: integration-test-results
           path: backend/integration-results.xml
 
+
+
   deploy:
     name: Deploy
-    needs: [integration-tests]
+    needs: [integration-tests, frontend-build]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
