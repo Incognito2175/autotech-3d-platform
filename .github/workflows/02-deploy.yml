@@ -112,7 +112,33 @@ jobs:
           name: integration-test-results
           path: backend/integration-results.xml
 
+  frontend-build:
+    name: Frontend Build (React + Three.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
 
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias y compilar
+        run: |
+          npm ci
+          npm run build
+
+      - name: Guardar artefacto del frontend compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
   deploy:
     name: Deploy
